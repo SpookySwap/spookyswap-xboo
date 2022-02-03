@@ -38,6 +38,7 @@ contract BrewBoo is Ownable {
 
     // V1 - V5: OK
     mapping(address => address) internal _bridges;
+    mapping(address => bool) internal converted;
 
     event SetDevAddr(address _addr);
     event SetDevCut(uint _amount);
@@ -45,9 +46,7 @@ contract BrewBoo is Ownable {
     event LogConvert(
         address indexed server,
         address indexed token0,
-        address indexed token1,
         uint256 amount0,
-        uint256 amount1,
         uint256 amountBOO
     );
 
@@ -75,9 +74,9 @@ contract BrewBoo is Ownable {
         isAuth[_auth] = false;
     }
 
-    // setting anyAuth to true allows anyone to call functions protected by onlyAuth
-    function setAnyAuth(bool access) external onlyOwner {
-        anyAuth = access;
+    // setting anyAuth to true allows anyone to call functions protected by onlyAuth permanently
+    function setAnyAuth() external onlyOwner {
+        anyAuth = true;
     }
 
     function setBridge(address token, address bridge) external onlyOwner {
@@ -121,16 +120,6 @@ contract BrewBoo is Ownable {
         _;
     }
 
-    // F1 - F10: OK
-    // F3: _convert is separate to save gas by only checking the 'onlyEOA' modifier once in case of convertMultiple
-    // F6: There is an exploit to add lots of BOO to the xboo, run convert, then remove the BOO again.
-    //     As the size of the Booxboo has grown, this requires large amounts of funds and isn't super profitable anymore
-    //     The onlyEOA modifier prevents this being done with a flash loan.
-    // C1 - C24: OK
-    function convert(address token0, address token1) external onlyEOA() onlyAuth() {
-        _convert(token0, token1);
-    }
-
     // F1 - F10: OK, see convert
     // C1 - C24: OK
     // C3: Loop is under control of the caller
@@ -138,54 +127,35 @@ contract BrewBoo is Ownable {
         address[] calldata token0,
         address[] calldata token1
     ) external onlyEOA() onlyAuth() {
-        // TODO: This can be optimized a fair bit, but this is safer and simpler for now
-        uint256 len = token0.length;
-        for (uint256 i = 0; i < len; i++) {
-            _convert(token0[i], token1[i]);
-        }
-    }
 
-    // F1 - F10: OK
-    // C1- C24: OK
-    function _convert(address token0, address token1) internal {
-        uint256 amount0;
-        uint256 amount1;
+        converted[wftm] = true;
 
-        // handle case where non-LP tokens need to be converted
-        if(token0 == token1) {
-            amount0 = IERC20(token0).balanceOf(address(this));
-            amount1 = 0;
-        }
-        else {
-
-            IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0, token1));
+        uint len = token0.length;
+        uint i;
+        for (i = 0; i < len; i++) {
+            if (token0[i] == token1[i])
+                continue;
+            IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0[i], token1[i]));
             require(address(pair) != address(0), "BrewBoo: Invalid pair");
 
-            IERC20(address(pair)).safeTransfer(
-                address(pair),
-                pair.balanceOf(address(this))
-            );
-
-            // take balance of tokens in this contract before burning the pair, incase there are already some here
-            uint tok0bal = IERC20(token0).balanceOf(address(this));
-            uint tok1bal = IERC20(token1).balanceOf(address(this));
-
+            IERC20(address(pair)).safeTransfer(address(pair), pair.balanceOf(address(this)));
             pair.burn(address(this));
-
-            // subtract old balance of tokens from new balance
-            // the return values of pair.burn cant be trusted due to transfer tax tokens
-            amount0 = IERC20(token0).balanceOf(address(this)).sub(tok0bal);
-            amount1 = IERC20(token1).balanceOf(address(this)).sub(tok1bal);
-            
         }
-        emit LogConvert(
-            msg.sender,
-            token0,
-            token1,
-            amount0,
-            amount1,
-            _convertStep(token0, token1, amount0, amount1)
-        );
+
+        for (i = 0; i < len; i++) {
+            if(!converted[token0[i]]) {
+                _convertStep(token0[i], IERC20(token0[i]).balanceOf(address(this)));
+                converted[token0[i]] = true;
+            }
+            if(!converted[token1[i]]) {
+                _convertStep(token1[i], IERC20(token1[i]).balanceOf(address(this)));
+                converted[token1[i]] = true;
+            }
+        }
+        
+        uint wftmBal = IERC20(wftm).balanceOf(address(this));
+        uint amount = _toBOO(wftm, wftmBal);
+        emit LogConvert(msg.sender, wftm, wftmBal, amount);
     }
 
     // F1 - F10: OK
@@ -193,72 +163,21 @@ contract BrewBoo is Ownable {
     // All safeTransfer, _swap, _toBOO, _convertStep: X1 - X5: OK
     function _convertStep(
         address token0,
-        address token1,
-        uint256 amount0,
-        uint256 amount1
-    ) internal returns (uint256 booOut) {
+        uint256 amount0
+    ) internal returns (bool) {
         // Interactions
-        if (token0 == token1) {
-            uint256 amount = amount0.add(amount1);
-            if (token0 == boo) {
-                IERC20(boo).safeTransfer(xboo, amount);
-                booOut = amount;
-            } else if (token0 == wftm) {
-                booOut = _toBOO(wftm, amount);
-            } else {
-                address bridge = bridgeFor(token0);
-                amount = _swap(token0, bridge, amount, address(this));
-                booOut = _convertStep(bridge, bridge, amount, 0);
-            }
-        } else if (token0 == boo) {
-            // eg. BOO - ETH
-            IERC20(boo).safeTransfer(xboo, amount0);
-            booOut = _toBOO(token1, amount1).add(amount0);
-        } else if (token1 == boo) {
-            // eg. USDT - BOO
-            IERC20(boo).safeTransfer(xboo, amount1);
-            booOut = _toBOO(token0, amount0).add(amount1);
+        uint256 amount = amount0;
+        if (token0 == boo) {
+            IERC20(boo).safeTransfer(xboo, amount);
+            emit LogConvert(msg.sender, token0, amount0, amount);
         } else if (token0 == wftm) {
-            // eg. ETH - USDC
-            booOut = _toBOO(
-                wftm,
-                _swap(token1, wftm, amount1, address(this)).add(amount0)
-            );
-        } else if (token1 == wftm) {
-            // eg. USDT - ETH
-            booOut = _toBOO(
-                wftm,
-                _swap(token0, wftm, amount0, address(this)).add(amount1)
-            );
+            return true;
         } else {
-            // eg. MIC - USDT
-            address bridge0 = bridgeFor(token0);
-            address bridge1 = bridgeFor(token1);
-            if (bridge0 == token1) {
-                // eg. MIC - USDT - and bridgeFor(MIC) = USDT
-                booOut = _convertStep(
-                    bridge0,
-                    token1,
-                    _swap(token0, bridge0, amount0, address(this)),
-                    amount1
-                );
-            } else if (bridge1 == token0) {
-                // eg. WBTC - DSD - and bridgeFor(DSD) = WBTC
-                booOut = _convertStep(
-                    token0,
-                    bridge1,
-                    amount0,
-                    _swap(token1, bridge1, amount1, address(this))
-                );
-            } else {
-                booOut = _convertStep(
-                    bridge0,
-                    bridge1, // eg. USDT - DSD - and bridgeFor(DSD) = WBTC
-                    _swap(token0, bridge0, amount0, address(this)),
-                    _swap(token1, bridge1, amount1, address(this))
-                );
-            }
+            address bridge = bridgeFor(token0);
+            amount = _swap(token0, bridge, amount, address(this));
+            _convertStep(bridge, amount);
         }
+        return true;
     }
 
     // F1 - F10: OK

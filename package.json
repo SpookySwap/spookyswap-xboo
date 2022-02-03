@@ -2,6 +2,11 @@
   "name": "spookyswap-xboo-priv",
   "version": "1.1.1",
   "main": "index.js",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "test": "npx hardhat test --verbose",
+    "deploy": "npx hardhat --network fantom run scripts/deploy_brewboo.ts"
+  },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^2.1.4",
