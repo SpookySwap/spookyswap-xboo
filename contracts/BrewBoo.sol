@@ -140,9 +140,10 @@ contract BrewBoo is Ownable {
         uint len = token0.length;
         uint i;
         for (i = 0; i < len; i++) {
-            if (token0[i] == token1[i])
+            if (token0[i] == token1[i]) {
                 require(!isLpToken(token0[i], "no LP allowed");
                 continue;
+            }
             require(!isLpToken(token0[i], "no LP allowed");
             require(!isLpToken(token1[i], "no LP allowed");
             IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0[i], token1[i]));
