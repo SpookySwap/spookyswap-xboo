@@ -38,7 +38,7 @@ contract BrewBoo is Ownable {
 
     // V1 - V5: OK
     mapping(address => address) internal _bridges;
-    mapping(address => bool) internal converted;
+    mapping(address => uint) internal converted;
 
     event SetDevAddr(address _addr);
     event SetDevCut(uint _amount);
@@ -128,8 +128,6 @@ contract BrewBoo is Ownable {
         address[] calldata token1
     ) external onlyEOA() onlyAuth() {
 
-        converted[wftm] = true;
-
         uint len = token0.length;
         uint i;
         for (i = 0; i < len; i++) {
@@ -141,18 +139,18 @@ contract BrewBoo is Ownable {
             IERC20(address(pair)).safeTransfer(address(pair), pair.balanceOf(address(this)));
             pair.burn(address(this));
         }
-
+        converted[wftm] = block.number;
         for (i = 0; i < len; i++) {
-            if(!converted[token0[i]]) {
+            if(block.number > converted[token0[i]]) {
                 _convertStep(token0[i], IERC20(token0[i]).balanceOf(address(this)));
-                converted[token0[i]] = true;
+                converted[token0[i]] = block.number;
             }
-            if(!converted[token1[i]]) {
+            if(block.number > converted[token1[i]]) {
                 _convertStep(token1[i], IERC20(token1[i]).balanceOf(address(this)));
-                converted[token1[i]] = true;
+                converted[token1[i]] = block.number;
             }
         }
-        
+
         uint wftmBal = IERC20(wftm).balanceOf(address(this));
         uint amount = _toBOO(wftm, wftmBal);
         emit LogConvert(msg.sender, wftm, wftmBal, amount);
