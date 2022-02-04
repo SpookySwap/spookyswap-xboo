@@ -6,15 +6,15 @@ pragma solidity 0.6.12;
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 import '@openzeppelin/contracts/math/SafeMath.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
 import "./interfaces/IUniswapV2ERC20.sol";
 import "./interfaces/IUniswapV2Pair.sol";
 import "./interfaces/IUniswapV2Factory.sol";
 
 // BrewBoo is MasterChef's left hand and kinda a wizard. He can brew Boo from pretty much anything!
 // This contract handles "serving up" rewards for xBoo holders by trading tokens collected from fees for Boo.
-
-// T1 - T4: OK
-contract BrewBoo is Ownable {
+// The caller of convertMultiple, the function responsible for converting fees to BOO earns a 0.1% reward for calling.
+contract BrewBoo is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -23,7 +23,8 @@ contract BrewBoo is Ownable {
     address public immutable xboo;
     address private immutable boo;
     address private immutable wftm;
-    uint public devCut = 0;  // in basis points aka parts per 10,000 so 5000 is 50%, cap of 50%, default is 0
+    uint public devCut;  // in basis points aka parts per 10,000 so 5000 is 50%, cap of 50%, default is 0
+    uint public bountyFee = 10; 
     address public devAddr;
 
     // set of addresses that can perform certain functions
@@ -32,7 +33,7 @@ contract BrewBoo is Ownable {
     bool public anyAuth = false;
 
     modifier onlyAuth() {
-        require(isAuth[msg.sender] || anyAuth, "BrewBoo: FORBIDDEN");
+        require(isAuth[_msgSender()], "BrewBoo: FORBIDDEN");
         _;
     }
 
@@ -74,12 +75,12 @@ contract BrewBoo is Ownable {
         isAuth[_auth] = false;
     }
 
-    // setting anyAuth to true allows anyone to call functions protected by onlyAuth permanently
+    // setting anyAuth to true allows anyone to call convertMultiple permanently
     function setAnyAuth() external onlyOwner {
         anyAuth = true;
     }
 
-    function setBridge(address token, address bridge) external onlyOwner {
+    function setBridge(address token, address bridge) external onlyAuth {
         // Checks
         require(
             token != boo && token != wftm && token != bridge,
@@ -98,7 +99,8 @@ contract BrewBoo is Ownable {
         emit SetDevCut(_amount);
     }
 
-    function setDevAddr(address _addr) external onlyOwner {
+    function setDevAddr(address _addr) external {
+        require(owner() == _msgSender() || devAddr == _msgSender(), "not allowed");
         require(_addr != address(0), "setDevAddr, address cannot be zero address");
         devAddr = _addr;
 
@@ -129,14 +131,11 @@ contract BrewBoo is Ownable {
         }
     }
 
-    // F1 - F10: OK, see convert
-    // C1 - C24: OK
-    // C3: Loop is under control of the caller
     function convertMultiple(
         address[] calldata token0,
         address[] calldata token1
-    ) external onlyEOA() onlyAuth() {
-
+    ) external onlyEOA() nonReentrant() {
+        require(anyAuth || isAuth[_msgSender()], "BrewBoo: FORBIDDEN");
         uint len = token0.length;
         uint i;
         for (i = 0; i < len; i++) {
@@ -152,7 +151,8 @@ contract BrewBoo is Ownable {
             IERC20(address(pair)).safeTransfer(address(pair), pair.balanceOf(address(this)));
             pair.burn(address(this));
         }
-        converted[wftm] = block.number;
+        
+        converted[wftm] = block.number; // wftm is done last
         for (i = 0; i < len; i++) {
             if(block.number > converted[token0[i]]) {
                 _convertStep(token0[i], IERC20(token0[i]).balanceOf(address(this)));
@@ -163,25 +163,19 @@ contract BrewBoo is Ownable {
                 converted[token1[i]] = block.number;
             }
         }
-
+        // final step is to swap all wFTM to BOO and disperse it
         uint wftmBal = IERC20(wftm).balanceOf(address(this));
         uint amount = _toBOO(wftm, wftmBal);
-        emit LogConvert(msg.sender, wftm, wftmBal, amount);
+        _disperseBOO(amount);
     }
 
-    // F1 - F10: OK
-    // C1 - C24: OK
-    // All safeTransfer, _swap, _toBOO, _convertStep: X1 - X5: OK
     function _convertStep(
         address token0,
         uint256 amount0
     ) internal returns (bool) {
         // Interactions
         uint256 amount = amount0;
-        if (token0 == boo) {
-            IERC20(boo).safeTransfer(xboo, amount);
-            emit LogConvert(msg.sender, token0, amount0, amount);
-        } else if (token0 == wftm) {
+        if (token0 == boo || token == wftm) {
             return true;
         } else {
             address bridge = bridgeFor(token0);
@@ -191,17 +185,21 @@ contract BrewBoo is Ownable {
         return true;
     }
 
-    // F1 - F10: OK
-    // C1 - C24: OK
-    // All safeTransfer, swap: X1 - X5: OK
+    function _disperseBOO() internal returns (uint amount){
+        uint _amt = IERC20(boo).balanceOf(address(this));
+        uint bounty = _amt.mul(bountyFee).div(10000);
+        amount = _amt.sub(bounty);
+        IERC20(boo).safeTransfer(xboo, amount); // send xboo its share
+        IERC20(boo).safeTransfer(_msgSender(), bounty); // send message sender their share of 0.1%
+        emit LogConvert(_msgSender(), boo, _amt, amount);
+    }
+
     function _swap(
         address fromToken,
         address toToken,
         uint256 amountIn,
         address to
     ) internal returns (uint256 amountOut) {
-        // Checks
-        // X1 - X5: OK
         IUniswapV2Pair pair =
             IUniswapV2Pair(factory.getPair(fromToken, toToken));
         require(address(pair) != address(0), "BrewBoo: Cannot convert");
@@ -216,19 +214,14 @@ contract BrewBoo is Ownable {
         pair.swap(amount0Out, amount1Out, to, new bytes(0));        
     }
 
-    // F1 - F10: OK
-    // C1 - C24: OK
-    function _toBOO(address token, uint256 amountIn)
-        internal
-        returns (uint256 amountOut)
-    {   
+    function _toBOO(address token, uint256 amountIn) internal returns (uint256 amountOut) {   
         uint256 amount = amountIn;
         if (devCut > 0) {
             amount = amount.mul(devCut).div(10000);
             IERC20(token).safeTransfer(devAddr, amount);
             amount = amountIn.sub(amount);
         }
-        amountOut = _swap(token, boo, amount, xboo);
+        amountOut = _swap(token, boo, amount, address(this));
     }
 
     function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
