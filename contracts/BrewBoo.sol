@@ -165,8 +165,8 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         }
         // final step is to swap all wFTM to BOO and disperse it
         uint wftmBal = IERC20(wftm).balanceOf(address(this));
-        uint amount = _toBOO(wftm, wftmBal);
-        _disperseBOO(amount);
+        _toBOO(wftm, wftmBal);
+        _disperseBOO();
     }
 
     function _convertStep(
@@ -175,7 +175,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     ) internal returns (bool) {
         // Interactions
         uint256 amount = amount0;
-        if (token0 == boo || token == wftm) {
+        if (token0 == boo || token0 == wftm) {
             return true;
         } else {
             address bridge = bridgeFor(token0);
