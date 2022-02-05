@@ -24,7 +24,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     address private immutable boo;
     address private immutable wftm;
     uint public devCut;  // in basis points aka parts per 10,000 so 5000 is 50%, cap of 50%, default is 0
-    uint public bountyFee = 10; 
+    uint public constant BOUNTY_FEE = 10; 
     address public devAddr;
 
     // set of addresses that can perform certain functions
@@ -205,7 +205,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
 
     function _disperseBOO() internal returns (uint amount){
         uint _amt = IERC20(boo).balanceOf(address(this));
-        uint bounty = _amt.mul(bountyFee).div(10000);
+        uint bounty = _amt.mul(BOUNTY_FEE).div(10000);
         amount = _amt.sub(bounty);
         IERC20(boo).safeTransfer(xboo, amount); // send xboo its share
         IERC20(boo).safeTransfer(_msgSender(), bounty); // send message sender their share of 0.1%
