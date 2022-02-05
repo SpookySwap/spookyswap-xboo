@@ -59,9 +59,9 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         uint256 amount0,
         uint256 amountBOO
     );
-    event toggleOverrode(address _adr);
-    event setAnyAuth();
-
+    event LogSetAnyAuth();
+    event LogToggleOverrode(address _adr);
+    
     constructor(
         address _factory,
         address _xboo,
@@ -77,10 +77,19 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         authorized.push(msg.sender);
     }
 
-    function isLpToken(address _adr) internal view returns (bool) {
+    function isLpToken(address _adr) internal returns (bool) {
         if (overrode[_adr]) return false;
         IUniswapV2Pair pair = IUniswapV2Pair(_adr);
-        try pair.factory() {
+        try pair.token0() {
+            address token0 = pair.token0();
+            address token1 = pair.token1();
+            address realPair = factory.getPair(token0, token1);
+            // check if newly derived pair is the same as the address passed in
+            if (_adr != realPair) {
+                overrode[_adr] = true;
+                emit LogToggleOverrode(_adr);
+                return false;
+            }
             return true;
         } catch {
             return false;
@@ -100,7 +109,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     // setting anyAuth to true allows anyone to call convertMultiple permanently
     function setAnyAuth() external onlyOwner {
         anyAuth = true;
-        emit setAnyAuth();
+        emit LogSetAnyAuth();
     }
 
     function setDevCut(uint _amount) external onlyOwner {
@@ -127,11 +136,6 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     }
 
     // onlyAuth type functions
-
-    function toggleOverrode(address _adr) external onlyAuth {
-        overrode[_adr] = !overrode[_adr];
-        emit toggleOverrode(_adr);
-    }
 
     function setBridge(address token, address bridge) external onlyAuth {
         // Checks
