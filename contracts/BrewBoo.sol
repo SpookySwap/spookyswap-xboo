@@ -103,11 +103,6 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         emit setAnyAuth();
     }
 
-    function toggleOverrode(address _adr) external onlyOwner {
-        overrode[_adr] = !overrode[_adr];
-        emit toggleOverrode(_adr);
-    }
-
     function setDevCut(uint _amount) external onlyOwner {
         require(_amount <= 5000, "setDevCut: cut too high");
         devCut = _amount;
@@ -132,6 +127,12 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     }
 
     // onlyAuth type functions
+
+    function toggleOverrode(address _adr) external onlyAuth {
+        overrode[_adr] = !overrode[_adr];
+        emit toggleOverrode(_adr);
+    }
+
     function setBridge(address token, address bridge) external onlyAuth {
         // Checks
         require(
