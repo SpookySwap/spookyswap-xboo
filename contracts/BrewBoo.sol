@@ -37,6 +37,14 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         _;
     }
 
+    // C6: It's not a fool proof solution, but it prevents flash loans, so here it's ok to use tx.origin
+    modifier onlyEOA() {
+        // Try to make flash-loan exploit harder to do by only allowing externally owned addresses.
+        require(msg.sender == tx.origin, "BrewBoo: must use EOA");
+        _;
+    }
+
+
     // V1 - V5: OK
     mapping(address => address) internal _bridges;
     mapping(address => uint) internal converted;
@@ -68,6 +76,17 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         isAuth[msg.sender] = true;
         authorized.push(msg.sender);
     }
+
+    function isLpToken(address _adr) internal view returns (bool) {
+        if (overrode[_adr]) return false;
+        IUniswapV2Pair pair = IUniswapV2Pair(_adr);
+        try pair.factory() {
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     // Begin Owner functions
     function addAuth(address _auth) external onlyOwner {
         isAuth[_auth] = true;
@@ -82,18 +101,6 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     function setAnyAuth() external onlyOwner {
         anyAuth = true;
         emit setAnyAuth();
-    }
-
-    function setBridge(address token, address bridge) external onlyAuth {
-        // Checks
-        require(
-            token != boo && token != wftm && token != bridge,
-            "BrewBoo: Invalid bridge"
-        );
-
-        // Effects
-        _bridges[token] = bridge;
-        emit LogBridgeSet(token, bridge);
     }
 
     function toggleOverrode(address _adr) external onlyOwner {
@@ -124,21 +131,17 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         }
     }
 
-    // C6: It's not a fool proof solution, but it prevents flash loans, so here it's ok to use tx.origin
-    modifier onlyEOA() {
-        // Try to make flash-loan exploit harder to do by only allowing externally owned addresses.
-        require(msg.sender == tx.origin, "BrewBoo: must use EOA");
-        _;
-    }
+    // onlyAuth type functions
+    function setBridge(address token, address bridge) external onlyAuth {
+        // Checks
+        require(
+            token != boo && token != wftm && token != bridge,
+            "BrewBoo: Invalid bridge"
+        );
 
-    function isLpToken(address _adr) internal view returns (bool) {
-        if (overrode[_adr]) return false;
-        IUniswapV2Pair pair = IUniswapV2Pair(_adr);
-        try pair.factory() {
-            return true;
-        } catch {
-            return false;
-        }
+        // Effects
+        _bridges[token] = bridge;
+        emit LogBridgeSet(token, bridge);
     }
 
     function convertMultiple(
