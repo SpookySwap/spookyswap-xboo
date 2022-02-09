@@ -14,7 +14,7 @@ import "./interfaces/IUniswapV2Factory.sol";
 // BrewBoo is MasterChef's left hand and kinda a wizard. He can brew Boo from pretty much anything!
 // This contract handles "serving up" rewards for xBoo holders by trading tokens collected from fees for Boo.
 // The caller of convertMultiple, the function responsible for converting fees to BOO earns a 0.1% reward for calling.
-contract BrewBoo is Ownable, ReentrancyGuard {
+contract BrewBooV2 is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
