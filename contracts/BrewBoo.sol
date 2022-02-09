@@ -144,6 +144,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     }
 
     function setSlippage(uint _amt) external onlyAuth {
+        require(_amt < 20, "slippage setting too high"); // the higher this setting, the lower the slippage tolerance, too high and buybacks would never work
         slippage = _amt;
     }
 
