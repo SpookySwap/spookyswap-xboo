@@ -26,6 +26,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     uint public devCut;  // in basis points aka parts per 10,000 so 5000 is 50%, cap of 50%, default is 0
     uint public constant BOUNTY_FEE = 10; 
     address public devAddr;
+    uint public slippage = 9;
 
     // set of addresses that can perform certain functions
     mapping(address => bool) public isAuth;
@@ -44,11 +45,10 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         _;
     }
 
-
-    // V1 - V5: OK
     mapping(address => address) internal _bridges;
     mapping(address => uint) internal converted;
     mapping(address => bool) public overrode;
+    mapping(address => bool) public slippageOverrode;
 
     event SetDevAddr(address _addr);
     event SetDevCut(uint _amount);
@@ -61,6 +61,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
     );
     event LogSetAnyAuth();
     event LogToggleOverrode(address _adr);
+    event LogSlippageOverrode(address _adr);
     
     constructor(
         address _factory,
@@ -137,6 +138,15 @@ contract BrewBoo is Ownable, ReentrancyGuard {
 
     // onlyAuth type functions
 
+    function overrideSlippage(address _token) external onlyAuth {
+        slippageOverrode[_token] = !slippageOverrode[_token];
+        emit LogSlippageOverrode(_token);
+    }
+
+    function setSlippage(uint _amt) external onlyAuth {
+        slippage = _amt;
+    }
+
     function setBridge(address token, address bridge) external onlyAuth {
         // Checks
         require(
@@ -186,6 +196,8 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         _disperseBOO();
     }
 
+    // internal functions
+
     function _convertStep(
         address token0,
         uint256 amount0
@@ -223,10 +235,12 @@ contract BrewBoo is Ownable, ReentrancyGuard {
 
         (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
         (uint reserveInput, uint reserveOutput) = fromToken == pair.token0() ? (reserve0, reserve1) : (reserve1, reserve0);
+        
         IERC20(fromToken).safeTransfer(address(pair), amountIn);
         uint amountInput = IERC20(fromToken).balanceOf(address(pair)).sub(reserveInput); // calculate amount that was transferred, this accounts for transfer taxes
+        require(slippageOverrode[fromToken] || reserveInput.div(amountInput) > slippage, "slippage too high");
 
-        amountOut = getAmountOut(amountInput, reserveInput, reserveOutput);
+        amountOut = _getAmountOut(amountInput, reserveInput, reserveOutput);
         (uint amount0Out, uint amount1Out) = fromToken == pair.token0() ? (uint(0), amountOut) : (amountOut, uint(0));
         pair.swap(amount0Out, amount1Out, to, new bytes(0));        
     }
@@ -241,7 +255,7 @@ contract BrewBoo is Ownable, ReentrancyGuard {
         amountOut = _swap(token, boo, amount, address(this));
     }
 
-    function getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
+    function _getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
         require(amountIn > 0, 'BrewBoo: INSUFFICIENT_INPUT_AMOUNT');
         require(reserveIn > 0 && reserveOut > 0, 'BrewBoo: INSUFFICIENT_LIQUIDITY');
         uint amountInWithFee = amountIn.mul(998);
