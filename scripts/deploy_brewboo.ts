@@ -6,7 +6,7 @@ const factory = "0x152eE697f2E276fA89E96742e9bB9aB1F2E61bE3"
 const xboo = "0xa48d959AE2E88f1dAA7D5F611E01908106dE7598"
 
 async function main() {
-    const brewBoo = await ethers.getContractFactory("BrewBoo");
+    const brewBoo = await ethers.getContractFactory("BrewBooV2");
     const BrewBoo = await brewBoo.deploy(factory, xboo, boo, wftm);
     await BrewBoo.deployed()
     console.log("BrewBoo deployed to:", BrewBoo.address);
