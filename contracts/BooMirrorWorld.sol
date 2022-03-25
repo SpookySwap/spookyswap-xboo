@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.6.12;
+pragma solidity 0.8.10;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import '@openzeppelin/contracts/math/SafeMath.sol';
 
 // BooMirrorWorld is the place where boo's live to create xBOO. Grim becomes her evil half, ace
 // This contract handles swapping to and from xBoo, SpookySwap's staking token.
@@ -13,7 +12,7 @@ contract BooMirrorWorld is ERC20("Boo MirrorWorld", "xBOO") {
     IERC20 public boo;
 
     // Define the Boo token contract
-    constructor(IERC20 _boo) public {
+    constructor(IERC20 _boo) {
         boo = _boo;
     }
 

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
 // P1 - P3: OK
-pragma solidity 0.6.12;
+pragma solidity 0.8.10;
 
-import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
-import '@openzeppelin/contracts/math/SafeMath.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
-import '@openzeppelin/contracts/utils/ReentrancyGuard.sol';
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IUniswapV2ERC20.sol";
 import "./interfaces/IUniswapV2Pair.sol";
 import "./interfaces/IUniswapV2Factory.sol";
@@ -72,7 +72,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         address _xboo,
         address _boo,
         address _wftm
-    ) public {
+    ) {
         factory = IUniswapV2Factory(_factory);
         xboo = _xboo;
         boo = _boo;
