@@ -231,7 +231,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 (amount, success) = _swap(token0, bridge, amount, address(this));
                 if(!success)
                     if(i == bridgeRouteAmount - 1)
-                        revert("swap failure");
+                        revert("BrewBooV3: bridge route failure");
                     else
                         continue;
                 _convertStep(bridge, amount);
@@ -284,7 +284,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         }
         (amountOut, success) = _swap(token, boo, amount, address(this));
         if(!success)
-            revert("swap failure");
+            revert("BrewBooV3: swap failure in toBOO");
     }
 
     function _getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
