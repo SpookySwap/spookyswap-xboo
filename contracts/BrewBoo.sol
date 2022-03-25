@@ -14,7 +14,7 @@ import "./interfaces/IUniswapV2Factory.sol";
 // BrewBoo is MasterChef's left hand and kinda a wizard. He can brew Boo from pretty much anything!
 // This contract handles "serving up" rewards for xBoo holders by trading tokens collected from fees for Boo.
 // The caller of convertMultiple, the function responsible for converting fees to BOO earns a 0.1% reward for calling.
-contract BrewBooV2 is Ownable, ReentrancyGuard {
+contract BrewBooV3 is Ownable, ReentrancyGuard {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -50,6 +50,10 @@ contract BrewBooV2 is Ownable, ReentrancyGuard {
     mapping(address => bool) public overrode;
     mapping(address => bool) public slippageOverrode;
 
+    //token bridges to try in order when swapping, first three are immutably wftm, usdc, dai
+    mapping(uint => address) public bridgeRoute;
+    uint public bridgeRouteAmount = 3; // "array" size aka next free slot in the mapping
+
     event SetDevAddr(address _addr);
     event SetDevCut(uint _amount);
     event LogBridgeSet(address indexed token, address indexed bridge);
@@ -76,6 +80,18 @@ contract BrewBooV2 is Ownable, ReentrancyGuard {
         devAddr = msg.sender;
         isAuth[msg.sender] = true;
         authorized.push(msg.sender);
+        bridgeRoute[0] = _wftm;
+        bridgeRoute[1] = 0x04068da6c83afcfa0e13ba15a6696662335d5b75;
+        bridgeRoute[2] = 0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E;
+    }
+
+    function setBridgeRoute(uint index, address token) external onlyAuth {
+        require(index > 2, "first 3 bridge tokens are immutable");
+        require(index <= bridgeRouteAmount, "index too large, use next free slot");
+
+        bridgeRoute[index] = token;
+        if(index == bridgeRouteAmount)
+            bridgeRouteAmount += 1;
     }
 
     function isLpToken(address _adr) internal returns (bool) {
