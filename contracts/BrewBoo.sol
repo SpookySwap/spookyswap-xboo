@@ -81,7 +81,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         isAuth[msg.sender] = true;
         authorized.push(msg.sender);
         bridgeRoute[0] = _wftm;
-        bridgeRoute[1] = 0x04068da6c83afcfa0e13ba15a6696662335d5b75;
+        bridgeRoute[1] = 0x04068DA6C83AFCFA0e13ba15A6696662335D5B75;
         bridgeRoute[2] = 0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E;
     }
 
@@ -221,12 +221,21 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     ) internal returns (bool) {
         // Interactions
         uint256 amount = amount0;
+        bool success;
         if (token0 == boo || token0 == wftm) {
             return true;
         } else {
-            address bridge = bridgeFor(token0);
-            amount = _swap(token0, bridge, amount, address(this));
-            _convertStep(bridge, amount);
+            address bridge;
+            for(uint i = 0; i < bridgeRouteAmount; i++) {
+                bridge = bridgeRoute[i];
+                (amount, success) = _swap(token0, bridge, amount, address(this));
+                if(!success)
+                    continue;
+                _convertStep(bridge, amount);
+            }
+
+            if(!success)
+                revert("swap failure");
         }
         return true;
     }
@@ -245,7 +254,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         address toToken,
         uint256 amountIn,
         address to
-    ) internal returns (uint256 amountOut) {
+    ) internal returns (uint256 amountOut, bool success) {
         IUniswapV2Pair pair =
             IUniswapV2Pair(factory.getPair(fromToken, toToken));
         require(address(pair) != address(0), "BrewBoo: Cannot convert");
@@ -255,21 +264,26 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         
         IERC20(fromToken).safeTransfer(address(pair), amountIn);
         uint amountInput = IERC20(fromToken).balanceOf(address(pair)).sub(reserveInput); // calculate amount that was transferred, this accounts for transfer taxes
-        require(slippageOverrode[fromToken] || reserveInput.div(amountInput) > slippage, "slippage too high");
+        if(!(slippageOverrode[fromToken] || reserveInput.div(amountInput) > slippage))
+            return (0, false);
 
         amountOut = _getAmountOut(amountInput, reserveInput, reserveOutput);
         (uint amount0Out, uint amount1Out) = fromToken == pair.token0() ? (uint(0), amountOut) : (amountOut, uint(0));
-        pair.swap(amount0Out, amount1Out, to, new bytes(0));        
+        pair.swap(amount0Out, amount1Out, to, new bytes(0));
+        success = true;
     }
 
     function _toBOO(address token, uint256 amountIn) internal returns (uint256 amountOut) {   
         uint256 amount = amountIn;
+        bool success;
         if (devCut > 0) {
             amount = amount.mul(devCut).div(10000);
             IERC20(token).safeTransfer(devAddr, amount);
             amount = amountIn.sub(amount);
         }
-        amountOut = _swap(token, boo, amount, address(this));
+        (amountOut, success) = _swap(token, boo, amount, address(this));
+        if(!success)
+            revert("swap failure");
     }
 
     function _getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
