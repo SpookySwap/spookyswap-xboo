@@ -230,12 +230,13 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 bridge = bridgeRoute[i];
                 (amount, success) = _swap(token0, bridge, amount, address(this));
                 if(!success)
-                    continue;
+                    if(i == bridgeRouteAmount - 1)
+                        revert("swap failure");
+                    else
+                        continue;
                 _convertStep(bridge, amount);
+                break;
             }
-
-            if(!success)
-                revert("swap failure");
         }
         return true;
     }
