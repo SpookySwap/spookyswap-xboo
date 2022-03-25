@@ -147,9 +147,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
 
     function bridgeFor(address token) public view returns (address bridge) {
         bridge = _bridges[token];
-        if (bridge == address(0)) {
-            bridge = wftm;
-        }
     }
 
     // onlyAuth type functions
@@ -230,13 +227,21 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 bridge = bridgeRoute[i];
                 (amount, success) = _swap(token0, bridge, amount, address(this));
                 if(!success)
-                    if(i == bridgeRouteAmount - 1)
-                        revert("BrewBooV3: bridge route failure");
-                    else
-                        continue;
+                    if(i == bridgeRouteAmount - 1) {//try custom bridge if generic options are exhausted
+                        bridge = bridgeFor(token0);
+                        if(bridge == address(0))
+                            revert("BrewBooV3: bridge route failure - all options exhausted and custom bridge not set");
+                        (amount, success) = _swap(token0, bridge, amount, address(this));
+                        if(success)
+                            _convertStep(bridge, amount);
+                        else
+                            revert("BrewBooV3: bridge route swap failure - fail on last resort swap on custom bridge...");
+                        break;
+                    } else continue;
                 _convertStep(bridge, amount);
                 break;
             }
+            //danger zone
         }
         return true;
     }
