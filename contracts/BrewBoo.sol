@@ -241,7 +241,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 (amount, success) = _swap(token0, bridge, amount, address(this));
                 if(!success)
                     if(i == bridgeRouteAmount - 1) {//try custom bridge if generic options are exhausted
-                        bridge = _bridges[token];
+                        bridge = _bridges[token0];
                         if(bridge == address(0))
                             revert("BrewBooV3: bridge route failure - all options exhausted and custom bridge not set");
                         (amount, success) = _swap(token0, bridge, amount, address(this));
