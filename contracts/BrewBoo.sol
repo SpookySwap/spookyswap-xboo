@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "./interfaces/IUniswapV2ERC20.sol";
 import "./interfaces/IUniswapV2Pair.sol";
 import "./interfaces/IUniswapV2Factory.sol";
+import "./Swapper.sol";
 
 // BrewBoo is MasterChef's left hand and kinda a wizard. He can brew Boo from pretty much anything!
 // This contract handles "serving up" rewards for xBoo holders by trading tokens collected from fees for Boo.
@@ -19,14 +20,15 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IUniswapV2Factory public immutable factory;
+    ISwapper public immutable swapper;
 
     address public immutable xboo;
     address private immutable boo;
     address private immutable wftm;
     uint public devCut;  // in basis points aka parts per 10,000 so 5000 is 50%, cap of 50%, default is 0
-    uint public constant BOUNTY_FEE = 10; 
+    uint public constant BOUNTY_FEE = 10;
     address public devAddr;
-    uint public slippage = 9;
+    //uint public slippage = 9;
 
     // set of addresses that can perform certain functions
     mapping(address => bool) public isAuth;
@@ -48,7 +50,8 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     mapping(address => address) internal _bridges;
     mapping(address => uint) internal converted;
     mapping(address => bool) public overrode;
-    mapping(address => bool) public slippageOverrode;
+    //mapping(address => bool) public slippageOverrode;
+    mapping(address => bool) public swapperApproved;
 
     //token bridges to try in order when swapping, first three are immutably wftm, usdc, dai
     mapping(uint => address) public bridgeRoute;
@@ -67,7 +70,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     event LogSetAnyAuth();
     event LogToggleOverrode(address _adr);
     event LogSlippageOverrode(address _adr);
-    
+
     constructor(
         address _factory,
         address _xboo,
@@ -84,6 +87,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         bridgeRoute[0] = _wftm;
         bridgeRoute[1] = 0x04068DA6C83AFCFA0e13ba15A6696662335D5B75;
         bridgeRoute[2] = 0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E;
+        swapper = new Swapper(_factory);
     }
 
     function setBridgeRoute(uint index, address token) external onlyAuth {
@@ -138,7 +142,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     function setDevCut(uint _amount) external onlyOwner {
         require(_amount <= 5000, "setDevCut: cut too high");
         devCut = _amount;
-        
+
         emit SetDevCut(_amount);
     }
 
@@ -158,13 +162,12 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     // onlyAuth type functions
 
     function overrideSlippage(address _token) external onlyAuth {
-        slippageOverrode[_token] = !slippageOverrode[_token];
+        swapper.overrideSlippage(_token);
         emit LogSlippageOverrode(_token);
     }
 
     function setSlippage(uint _amt) external onlyAuth {
-        require(_amt < 20, "slippage setting too high"); // the higher this setting, the lower the slippage tolerance, too high and buybacks would never work
-        slippage = _amt;
+        swapper.setSlippage(_amt);
     }
 
     function setBridge(address token, address bridge) external onlyAuth {
@@ -198,7 +201,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             IERC20(address(pair)).safeTransfer(address(pair), pair.balanceOf(address(this)));
             pair.burn(address(this));
         }
-        
+
         converted[wftm] = block.number; // wftm is done last
         for (i = 0; i < len; i++) {
             if(block.number > converted[token0[i]]) {
@@ -231,20 +234,20 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             address bridge;
             bridge = lastRoute[token0];
             if(bridge != address(0))
-                (amount, success) = _swap(token0, bridge, amount, address(this));
+                (amount, success) = _swap(token0, bridge, amount);
 
             if(success)
                 _convertStep(bridge, amount);
             else for(uint i = 0; i < bridgeRouteAmount; i++) {
                 bridge = bridgeRoute[i];
                 if(bridge == address(0)) continue;
-                (amount, success) = _swap(token0, bridge, amount, address(this));
+                (amount, success) = _swap(token0, bridge, amount);
                 if(!success)
                     if(i == bridgeRouteAmount - 1) {//try custom bridge if generic options are exhausted
                         bridge = _bridges[token0];
                         if(bridge == address(0))
                             revert("BrewBooV3: bridge route failure - all options exhausted and custom bridge not set");
-                        (amount, success) = _swap(token0, bridge, amount, address(this));
+                        (amount, success) = _swap(token0, bridge, amount);
                         if(success)
                             _convertStep(bridge, amount);
                         else
@@ -273,28 +276,21 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     function _swap(
         address fromToken,
         address toToken,
-        uint256 amountIn,
-        address to
+        uint256 amountIn
     ) internal returns (uint256 amountOut, bool success) {
-        IUniswapV2Pair pair =
-            IUniswapV2Pair(factory.getPair(fromToken, toToken));
-        require(address(pair) != address(0), "BrewBoo: Cannot convert");
+        if(!swapperApproved[fromToken]) {
+            IERC20(fromToken).approve(address(swapper), 2**256 - 1);
+            swapperApproved[fromToken] = true;
+        }
 
-        (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
-        (uint reserveInput, uint reserveOutput) = fromToken == pair.token0() ? (reserve0, reserve1) : (reserve1, reserve0);
-        
-        IERC20(fromToken).safeTransfer(address(pair), amountIn);
-        uint amountInput = IERC20(fromToken).balanceOf(address(pair)).sub(reserveInput); // calculate amount that was transferred, this accounts for transfer taxes
-        if(!(slippageOverrode[fromToken] || reserveInput.div(amountInput) > slippage))
+        try swapper.swap(fromToken, toToken, amountIn) returns (uint amount) {
+            return (amount, true);
+        } catch {
             return (0, false);
-
-        amountOut = _getAmountOut(amountInput, reserveInput, reserveOutput);
-        (uint amount0Out, uint amount1Out) = fromToken == pair.token0() ? (uint(0), amountOut) : (amountOut, uint(0));
-        pair.swap(amount0Out, amount1Out, to, new bytes(0));
-        success = true;
+        }
     }
 
-    function _toBOO(address token, uint256 amountIn) internal returns (uint256 amountOut) {   
+    function _toBOO(address token, uint256 amountIn) internal returns (uint256 amountOut) {
         uint256 amount = amountIn;
         bool success;
         if (devCut > 0) {
@@ -302,17 +298,8 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             IERC20(token).safeTransfer(devAddr, amount);
             amount = amountIn.sub(amount);
         }
-        (amountOut, success) = _swap(token, boo, amount, address(this));
+        (amountOut, success) = _swap(token, boo, amount);
         if(!success)
             revert("BrewBooV3: swap failure in toBOO");
-    }
-
-    function _getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
-        require(amountIn > 0, 'BrewBoo: INSUFFICIENT_INPUT_AMOUNT');
-        require(reserveIn > 0 && reserveOut > 0, 'BrewBoo: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = amountIn.mul(998);
-        uint numerator = amountInWithFee.mul(reserveOut);
-        uint denominator = reserveIn.mul(1000).add(amountInWithFee);
-        amountOut = numerator / denominator;
     }
 }
