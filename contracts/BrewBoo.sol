@@ -53,6 +53,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     //token bridges to try in order when swapping, first three are immutably wftm, usdc, dai
     mapping(uint => address) public bridgeRoute;
     uint public bridgeRouteAmount = 3; // "array" size aka next free slot in the mapping
+    mapping(address => address) public lastRoute; //tokens last succesful route, will be tried first
 
     event SetDevAddr(address _addr);
     event SetDevCut(uint _amount);
@@ -218,12 +219,18 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     ) internal returns (bool) {
         // Interactions
         uint256 amount = amount0;
-        bool success;
+        bool success = false;
         if (token0 == boo || token0 == wftm) {
             return true;
         } else {
             address bridge;
-            for(uint i = 0; i < bridgeRouteAmount; i++) {
+            bridge = lastRoute[token0];
+            if(bridge != address(0))
+                (amount, success) = _swap(token0, bridge, amount, address(this));
+
+            if(success)
+                _convertStep(bridge, amount);
+            else for(uint i = 0; i < bridgeRouteAmount; i++) {
                 bridge = bridgeRoute[i];
                 (amount, success) = _swap(token0, bridge, amount, address(this));
                 if(!success)
@@ -236,8 +243,10 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                             _convertStep(bridge, amount);
                         else
                             revert("BrewBooV3: bridge route swap failure - fail on last resort swap on custom bridge...");
+                        lastRoute[token0] = bridge;
                         break;
                     } else continue;
+                lastRoute[token0] = bridge;
                 _convertStep(bridge, amount);
                 break;
             }
