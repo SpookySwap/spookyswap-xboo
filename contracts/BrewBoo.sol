@@ -95,6 +95,11 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             bridgeRouteAmount += 1;
     }
 
+    function setBridgeRouteAmount(uint amount) external onlyAuth {
+        require(amount > 2);
+        bridgeRouteAmount = amount;
+    }
+
     function isLpToken(address _adr) internal returns (bool) {
         if (overrode[_adr]) return false;
         IUniswapV2Pair pair = IUniswapV2Pair(_adr);
@@ -232,10 +237,11 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 _convertStep(bridge, amount);
             else for(uint i = 0; i < bridgeRouteAmount; i++) {
                 bridge = bridgeRoute[i];
+                if(bridge == address(0)) continue;
                 (amount, success) = _swap(token0, bridge, amount, address(this));
                 if(!success)
                     if(i == bridgeRouteAmount - 1) {//try custom bridge if generic options are exhausted
-                        bridge = bridgeFor(token0);
+                        bridge = _bridges[token];
                         if(bridge == address(0))
                             revert("BrewBooV3: bridge route failure - all options exhausted and custom bridge not set");
                         (amount, success) = _swap(token0, bridge, amount, address(this));
