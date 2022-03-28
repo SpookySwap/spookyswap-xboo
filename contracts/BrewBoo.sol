@@ -47,7 +47,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         _;
     }
 
-    mapping(address => address) internal _bridges;
     mapping(address => uint) internal converted;
     mapping(address => bool) public overrode;
     //mapping(address => bool) public slippageOverrode;
@@ -155,10 +154,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     }
     // End owner functions
 
-    function bridgeFor(address token) public view returns (address bridge) {
-        bridge = _bridges[token];
-    }
-
     // onlyAuth type functions
 
     function overrideSlippage(address _token) external onlyAuth {
@@ -178,7 +173,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         );
 
         // Effects
-        _bridges[token] = bridge;
+        lastRoute[token] = bridge;
         emit LogBridgeSet(token, bridge);
     }
 
@@ -243,18 +238,10 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 if(bridge == address(0)) continue;
                 (amount, success) = _swap(token0, bridge, amount);
                 if(!success)
-                    if(i == bridgeRouteAmount - 1) {//try custom bridge if generic options are exhausted
-                        bridge = _bridges[token0];
-                        if(bridge == address(0))
-                            revert("BrewBooV3: bridge route failure - all options exhausted and custom bridge not set");
-                        (amount, success) = _swap(token0, bridge, amount);
-                        if(success)
-                            _convertStep(bridge, amount);
-                        else
-                            revert("BrewBooV3: bridge route swap failure - fail on last resort swap on custom bridge...");
-                        lastRoute[token0] = bridge;
-                        break;
-                    } else continue;
+                    if(i == bridgeRouteAmount - 1)
+                        revert("BrewBooV3: bridge route failure - all options exhausted");
+                     else
+                        continue;
                 lastRoute[token0] = bridge;
                 _convertStep(bridge, amount);
                 break;
