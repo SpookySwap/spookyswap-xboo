@@ -7,7 +7,6 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import "./interfaces/IUniswapV2ERC20.sol";
 import "./interfaces/IUniswapV2Pair.sol";
 import "./interfaces/IUniswapV2Factory.sol";
 import "./Swapper.sol";
@@ -49,7 +48,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
 
     mapping(address => uint) internal converted;
     mapping(address => bool) public overrode;
-    //mapping(address => bool) public slippageOverrode;
     mapping(address => bool) public swapperApproved;
 
     //token bridges to try in order when swapping, first three are immutably wftm, usdc, dai
