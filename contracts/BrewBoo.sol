@@ -240,12 +240,12 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 if(!success)
                     if(i == bridgeRouteAmount - 1)
                         revert("BrewBooV3: bridge route failure - all options exhausted");
-                     else
-                        continue;
+                    else continue;
                 lastRoute[token0] = bridge;
                 _convertStep(bridge, amount);
                 break;
             }
+
             //danger zone
         }
         return true;
@@ -265,6 +265,9 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         address toToken,
         uint256 amountIn
     ) internal returns (uint256 amountOut, bool success) {
+        if(fromToken == toToken)
+            return (amountIn, false);
+
         if(!swapperApproved[fromToken]) {
             IERC20(fromToken).approve(address(swapper), 2**256 - 1);
             swapperApproved[fromToken] = true;
@@ -273,7 +276,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         try swapper.swap(fromToken, toToken, amountIn) returns (uint amount) {
             return (amount, true);
         } catch {
-            return (0, false);
+            return (amountIn, false);
         }
     }
 
