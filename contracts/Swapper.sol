@@ -6,7 +6,6 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./interfaces/IUniswapV2Pair.sol";
-import "./interfaces/IUniswapV2Factory.sol";
 import "./interfaces/ISwapper.sol";
 
 
@@ -15,15 +14,9 @@ contract Swapper is ISwapper, Ownable {
     using SafeERC20 for IERC20;
 
 
-    IUniswapV2Factory public immutable factory;
-
     uint public slippage = 9;
     mapping(address => bool) public slippageOverrode;
 
-
-    constructor(address _factory) {
-        factory = IUniswapV2Factory(_factory);
-    }
 
     // onlyAuth type functions
 
@@ -38,11 +31,10 @@ contract Swapper is ISwapper, Ownable {
 
     function swap(
         address fromToken,
-        address toToken,
+        address _pair,
         uint256 amountIn
     ) external onlyOwner returns (uint256 amountOut) {
-        IUniswapV2Pair pair =
-            IUniswapV2Pair(factory.getPair(fromToken, toToken));
+        IUniswapV2Pair pair = IUniswapV2Pair(_pair);
         require(address(pair) != address(0), "BrewBoo: Cannot convert");
 
         (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();

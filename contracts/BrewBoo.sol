@@ -84,7 +84,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         bridgeRoute[0] = _wftm;
         bridgeRoute[1] = 0x04068DA6C83AFCFA0e13ba15A6696662335D5B75;
         bridgeRoute[2] = 0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E;
-        swapper = new Swapper(_factory);
+        swapper = new Swapper();
     }
 
     function setBridgeRoute(uint index, address token) external onlyAuth {
@@ -271,7 +271,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             swapperApproved[fromToken] = true;
         }
 
-        try swapper.swap(fromToken, toToken, amountIn) returns (uint amount) {
+        try swapper.swap(fromToken, factory.getPair(fromToken, toToken), amountIn) returns (uint amount) {
             return (amount, true);
         } catch {
             return (amountIn, false);
