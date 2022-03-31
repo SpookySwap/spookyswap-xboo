@@ -182,7 +182,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         require(anyAuth || isAuth[_msgSender()], "BrewBoo: FORBIDDEN");
         uint len = token0.length;
         uint i;
-        for (i = 0; i < len; i++) {
+        for (i = 0; i < len;) {
             if (token0[i] == token1[i]) {
                 require(!isLpToken(token0[i]), "no LP allowed");
                 continue;
@@ -193,10 +193,11 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
 
             IERC20(address(pair)).safeTransfer(address(pair), pair.balanceOf(address(this)));
             pair.burn(address(this));
+            unchecked {++i;}
         }
 
         converted[wftm] = block.number; // wftm is done last
-        for (i = 0; i < len; i++) {
+        for (i = 0; i < len;) {
             if(block.number > converted[token0[i]]) {
                 _convertStep(token0[i], IERC20(token0[i]).balanceOf(address(this)));
                 converted[token0[i]] = block.number;
@@ -205,6 +206,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 _convertStep(token1[i], IERC20(token1[i]).balanceOf(address(this)));
                 converted[token1[i]] = block.number;
             }
+            unchecked {++i;}
         }
         // final step is to swap all wFTM to BOO and disperse it
         uint wftmBal = IERC20(wftm).balanceOf(address(this));
@@ -231,14 +233,17 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
 
             if(success)
                 _convertStep(bridge, amount);
-            else for(uint i = 0; i < bridgeRouteAmount; i++) {
+            else for(uint i = 0; i < bridgeRouteAmount;) {
                 bridge = bridgeRoute[i];
                 if(bridge == address(0)) continue;
                 (amount, success) = _swap(token0, bridge, amount);
                 if(!success)
                     if(i == bridgeRouteAmount - 1)
                         revert("BrewBooV3: bridge route failure - all options exhausted");
-                    else continue;
+                    else {
+                        unchecked {++i;}
+                        continue;
+                    }
                 lastRoute[token0] = bridge;
                 _convertStep(bridge, amount);
                 break;
