@@ -55,6 +55,8 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     uint public bridgeRouteAmount = 3; // "array" size aka next free slot in the mapping
     mapping(address => address) public lastRoute; //tokens last succesful route, will be tried first
 
+    mapping(address => mapping(address => address)) public pairOf;
+
     event SetDevAddr(address _addr);
     event SetDevCut(uint _amount);
     event LogBridgeSet(address indexed token, address indexed bridge);
@@ -107,7 +109,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         try pair.token0() {
             address token0 = pair.token0();
             address token1 = pair.token1();
-            address realPair = factory.getPair(token0, token1);
+            address realPair = _getPair(token0, token1);
             // check if newly derived pair is the same as the address passed in
             if (_adr != realPair) {
                 overrode[_adr] = true;
@@ -205,7 +207,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 continue;
             }
             require(!isLpToken(token0[i]) && !isLpToken(token1[i]), "no LP allowed");
-            IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0[i], token1[i]));
+            IUniswapV2Pair pair = IUniswapV2Pair(_getPair(token0[i], token1[i]));
             require(address(pair) != address(0), "BrewBoo: Invalid pair");
 
             IERC20(address(pair)).safeTransfer(address(pair), LPamounts.length == 0 ? pair.balanceOf(address(this)) : LPamounts[i]);
@@ -296,7 +298,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             swapperApproved[fromToken] = true;
         }
 
-        try swapper.swap(fromToken, factory.getPair(fromToken, toToken), amountIn) returns (uint amount) {
+        try swapper.swap(fromToken, _getPair(fromToken, toToken), amountIn) returns (uint amount) {
             return (amount, true);
         } catch {
             return (amountIn, false);
@@ -314,5 +316,14 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         (amountOut, success) = _swap(token, boo, amount);
         if(!success)
             revert("BrewBooV3: swap failure in toBOO");
+    }
+
+    function _getPair(address tokenA, address tokenB) internal returns (address pair) {
+        (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        pair = pairOf[token0][token1];
+        if(pair == address(0)) {
+            pair = factory.getPair(token0, token1);
+            pairOf[token0][token1] = pair;
+        }
     }
 }
