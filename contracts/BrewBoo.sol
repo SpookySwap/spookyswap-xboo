@@ -106,8 +106,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     function isLpToken(address _adr) internal returns (bool) {
         if (overrode[_adr]) return false;
         IUniswapV2Pair pair = IUniswapV2Pair(_adr);
-        try pair.token0() {
-            address token0 = pair.token0();
+        try pair.token0() returns (address token0) {
             address token1 = pair.token1();
             address realPair = _getPair(token0, token1);
             // check if newly derived pair is the same as the address passed in
