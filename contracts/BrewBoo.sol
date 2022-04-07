@@ -175,16 +175,48 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         emit LogBridgeSet(token, bridge);
     }
 
+    function checkedConvertMultiple(
+        address[] calldata token0,
+        address[] calldata token1,
+        uint[] calldata minimumBalances
+    ) external onlyEOA() nonReentrant() {
+        uint len = token0.length;
+        require(len == token1.length && len == minimumBalances.length);
+        for(uint i = 0; i < len;) {
+            if (token0[i] == token1[i]) {
+                require(!isLpToken(token0[i]), "no LP allowed");
+                unchecked {++i;}
+                continue;
+            }
+            require(!isLpToken(token0[i]) && !isLpToken(token1[i]), "no LP allowed");
+            IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0[i], token1[i]));
+            require(address(pair) != address(0), "BrewBoo: Invalid pair");
+
+            require(pair.balanceOf(address(this)) >= minimumBalances[i], "BrewBooV3: Oops! Contract LP token balance lower than your specified minimum for this buyback!");
+
+            unchecked {++i;}
+        }
+        _convertMultiple(token0, token1);
+    }
+
     function convertMultiple(
         address[] calldata token0,
         address[] calldata token1
     ) external onlyEOA() nonReentrant() {
+        _convertMultiple(token0, token1);
+    }
+
+    function _convertMultiple(
+        address[] calldata token0,
+        address[] calldata token1
+    ) internal {
         require(anyAuth || isAuth[_msgSender()], "BrewBoo: FORBIDDEN");
         uint len = token0.length;
         uint i;
         for (i = 0; i < len;) {
             if (token0[i] == token1[i]) {
                 require(!isLpToken(token0[i]), "no LP allowed");
+                unchecked {++i;}
                 continue;
             }
             require(!isLpToken(token0[i]) && !isLpToken(token1[i]), "no LP allowed");
@@ -235,7 +267,10 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 _convertStep(bridge, amount);
             else for(uint i = 0; i < bridgeRouteAmount;) {
                 bridge = bridgeRoute[i];
-                if(bridge == address(0)) continue;
+                if(bridge == address(0)) {
+                    unchecked {++i;}
+                    continue;
+                }
                 (amount, success) = _swap(token0, bridge, amount);
                 if(!success)
                     if(i == bridgeRouteAmount - 1)
