@@ -180,35 +180,20 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         address[] calldata token1,
         uint[] calldata minimumBalances
     ) external onlyEOA() nonReentrant() {
-        uint len = token0.length;
-        require(len == token1.length && len == minimumBalances.length);
-        for(uint i = 0; i < len;) {
-            if (token0[i] == token1[i]) {
-                require(!isLpToken(token0[i]), "no LP allowed");
-                unchecked {++i;}
-                continue;
-            }
-            require(!isLpToken(token0[i]) && !isLpToken(token1[i]), "no LP allowed");
-            IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0[i], token1[i]));
-            require(address(pair) != address(0), "BrewBoo: Invalid pair");
-
-            require(pair.balanceOf(address(this)) >= minimumBalances[i], "BrewBooV3: Oops! Contract LP token balance lower than your specified minimum for this buyback!");
-
-            unchecked {++i;}
-        }
-        _convertMultiple(token0, token1);
+        _convertMultiple(token0, token1, minimumBalances);
     }
 
     function convertMultiple(
         address[] calldata token0,
         address[] calldata token1
     ) external onlyEOA() nonReentrant() {
-        _convertMultiple(token0, token1);
+        _convertMultiple(token0, token1, new uint[](0));
     }
 
     function _convertMultiple(
         address[] calldata token0,
-        address[] calldata token1
+        address[] calldata token1,
+        uint[] memory LPamounts
     ) internal {
         require(anyAuth || isAuth[_msgSender()], "BrewBoo: FORBIDDEN");
         uint len = token0.length;
@@ -223,7 +208,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             IUniswapV2Pair pair = IUniswapV2Pair(factory.getPair(token0[i], token1[i]));
             require(address(pair) != address(0), "BrewBoo: Invalid pair");
 
-            IERC20(address(pair)).safeTransfer(address(pair), pair.balanceOf(address(this)));
+            IERC20(address(pair)).safeTransfer(address(pair), LPamounts.length == 0 ? pair.balanceOf(address(this)) : LPamounts[i]);
             pair.burn(address(this));
             unchecked {++i;}
         }
