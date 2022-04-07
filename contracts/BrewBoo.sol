@@ -32,7 +32,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     // set of addresses that can perform certain functions
     mapping(address => bool) public isAuth;
     address[] public authorized;
-    bool public anyAuth = false;
 
     modifier onlyAuth() {
         require(isAuth[_msgSender()], "BrewBoo: FORBIDDEN");
@@ -66,7 +65,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         uint256 amount0,
         uint256 amountBOO
     );
-    event LogSetAnyAuth();
     event LogToggleOverrode(address _adr);
     event LogSlippageOverrode(address _adr);
 
@@ -131,11 +129,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         isAuth[_auth] = false;
     }
 
-    // setting anyAuth to true allows anyone to call convertMultiple permanently
-    function setAnyAuth() external onlyOwner {
-        anyAuth = true;
-        emit LogSetAnyAuth();
-    }
 
     function setDevCut(uint _amount) external onlyOwner {
         require(_amount <= 5000, "setDevCut: cut too high");
@@ -196,7 +189,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         address[] calldata token1,
         uint[] memory LPamounts
     ) internal {
-        require(anyAuth || isAuth[_msgSender()], "BrewBoo: FORBIDDEN");
         uint len = token0.length;
         uint i;
         for (i = 0; i < len;) {
