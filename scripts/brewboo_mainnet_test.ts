@@ -37,20 +37,26 @@ async function main() {
     console.log("User Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(accounts[0].address)))
     console.log("xboo Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(xboo)))
 
-    for(let i = 0; i < 2; i++) {
+    for(let i = 0; i < 3; i++) {
         puppet = "0x67fc8c432448f9a8d541c17579ef7a142378d5ad"
         LP = "0x0a80C53AfC6DE9dfB2017781436BfE5090F4aCB4"
         //*
         await provider.send("hardhat_impersonateAccount", [puppet]);
         spooky = provider.getSigner(puppet);
         token = await ethers.getContractAt("contracts/interfaces/IERC20.sol:IERC20", LP)
-        await token.connect(spooky).transfer(BrewBoo.address, ethers.utils.parseEther("0.01"))
+        if(i != 2)
+            await token.connect(spooky).transfer(BrewBoo.address, ethers.utils.parseEther("0.01"))
         await provider.send("hardhat_stopImpersonatingAccount", [puppet]);
         /**/
 
         console.log("Last route: ", await BrewBoo.lastRoute("0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"))
         //await BrewBoo.setBridge("0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590", usdc)
-        tx = await BrewBoo.convertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"])
+        if(i == 0)
+            tx = await BrewBoo.convertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"])
+        else if(i == 1)
+            tx = await BrewBoo.checkedConvertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"], [ethers.utils.parseEther("0.005")])
+        else if(i == 2)
+            tx = await BrewBoo.checkedConvertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"], [])
         console.log("*buyback* - gas used: ", (await tx.wait()).gasUsed)
         console.log("Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(accounts[0].address)))
         console.log("xboo Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(xboo)))
