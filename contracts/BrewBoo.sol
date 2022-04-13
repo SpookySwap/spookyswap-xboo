@@ -169,26 +169,11 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         emit LogBridgeSet(token, bridge);
     }
 
-    function checkedConvertMultiple(
-        address[] calldata token0,
-        address[] calldata token1,
-        uint[] calldata minimumBalances
-    ) external onlyEOA() nonReentrant() {
-        _convertMultiple(token0, token1, minimumBalances);
-    }
-
     function convertMultiple(
         address[] calldata token0,
-        address[] calldata token1
-    ) external onlyEOA() nonReentrant() {
-        _convertMultiple(token0, token1, new uint[](0));
-    }
-
-    function _convertMultiple(
-        address[] calldata token0,
         address[] calldata token1,
-        uint[] memory LPamounts
-    ) internal {
+        uint[] calldata LPamounts
+    ) external onlyEOA() nonReentrant() {
         uint len = token0.length;
         uint i;
         for (i = 0; i < len;) {

@@ -32,7 +32,7 @@ async function main() {
     /**/
 
 
-    tx = await BrewBoo.convertMultiple([wftm], [usdc])
+    tx = await BrewBoo.convertMultiple([wftm], [usdc], [])
     console.log("*buyback* - gas used: ", (await tx.wait()).gasUsed)
     console.log("User Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(accounts[0].address)))
     console.log("xboo Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(xboo)))
@@ -52,11 +52,11 @@ async function main() {
         console.log("Last route: ", await BrewBoo.lastRoute("0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"))
         //await BrewBoo.setBridge("0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590", usdc)
         if(i == 0)
-            tx = await BrewBoo.convertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"])
+            tx = await BrewBoo.convertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"], [])
         else if(i == 1)
-            tx = await BrewBoo.checkedConvertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"], [ethers.utils.parseEther("0.005")])
+            tx = await BrewBoo.convertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"], [ethers.utils.parseEther("0.005")])
         else if(i == 2)
-            tx = await BrewBoo.checkedConvertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"], [])
+            tx = await BrewBoo.convertMultiple([usdc], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590"], [])
         console.log("*buyback* - gas used: ", (await tx.wait()).gasUsed)
         console.log("Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(accounts[0].address)))
         console.log("xboo Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(xboo)))
