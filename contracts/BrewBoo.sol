@@ -115,6 +115,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             }
             return true;
         } catch {
+            overrode[_adr] = true;
             return false;
         }
     }
@@ -174,16 +175,16 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         address[] calldata token1,
         uint[] calldata LPamounts
     ) external onlyEOA() nonReentrant() {
-        uint len = token0.length;
         uint i;
-        for (i = 0; i < len;) {
+        IUniswapV2Pair pair;
+        for (i = 0; i < token0.length;) {
             if (token0[i] == token1[i]) {
                 require(!isLpToken(token0[i]), "no LP allowed");
                 unchecked {++i;}
                 continue;
             }
             require(!isLpToken(token0[i]) && !isLpToken(token1[i]), "no LP allowed");
-            IUniswapV2Pair pair = IUniswapV2Pair(_getPair(token0[i], token1[i]));
+            pair = IUniswapV2Pair(_getPair(token0[i], token1[i]));
             require(address(pair) != address(0), "BrewBoo: Invalid pair");
 
             IERC20(address(pair)).safeTransfer(address(pair), LPamounts.length == 0 ? pair.balanceOf(address(this)) : LPamounts[i]);
@@ -192,7 +193,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         }
 
         converted[wftm] = block.number; // wftm is done last
-        for (i = 0; i < len;) {
+        for (i = 0; i < token0.length;) {
             if(block.number > converted[token0[i]]) {
                 _convertStep(token0[i], IERC20(token0[i]).balanceOf(address(this)));
                 converted[token0[i]] = block.number;
@@ -204,9 +205,24 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             unchecked {++i;}
         }
         // final step is to swap all wFTM to BOO and disperse it
-        uint wftmBal = IERC20(wftm).balanceOf(address(this));
-        _toBOO(wftm, wftmBal);
-        _disperseBOO();
+        i = IERC20(wftm).balanceOf(address(this)); //reuse i for amount to save gas
+        bool success;
+        if (devCut > 0) {
+            uint cut = i.mul(devCut).div(10000);
+            IERC20(wftm).safeTransfer(devAddr, cut);
+            i = i.sub(cut);
+        }
+        (, success) = _swap(wftm, boo, i);
+        if(!success)
+            revert("BrewBooV3: swap failure in toBOO");
+
+        //disperse
+        uint _amt = IERC20(boo).balanceOf(address(this));
+        uint bounty = _amt.mul(BOUNTY_FEE).div(10000);
+        i = _amt.sub(bounty); //reuse i for amount to save gas
+        IERC20(boo).safeTransfer(xboo, i); // send xboo its share
+        IERC20(boo).safeTransfer(_msgSender(), bounty); // send message sender their share of 0.1%
+        emit LogConvert(_msgSender(), boo, _amt, i);
     }
 
     // internal functions
@@ -216,13 +232,12 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         uint256 amount0
     ) internal returns (bool) {
         // Interactions
-        uint256 amount = amount0;
-        bool success = false;
-        if (token0 == boo || token0 == wftm) {
+        if (token0 == wftm || token0 == boo) {
             return true;
         } else {
-            address bridge;
-            bridge = lastRoute[token0];
+            address bridge = lastRoute[token0];
+            uint256 amount = amount0;
+            bool success = false;
             if(bridge != address(0))
                 (amount, success) = _swap(token0, bridge, amount);
 
@@ -246,19 +261,8 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
                 _convertStep(bridge, amount);
                 break;
             }
-
-            //danger zone
         }
         return true;
-    }
-
-    function _disperseBOO() internal returns (uint amount){
-        uint _amt = IERC20(boo).balanceOf(address(this));
-        uint bounty = _amt.mul(BOUNTY_FEE).div(10000);
-        amount = _amt.sub(bounty);
-        IERC20(boo).safeTransfer(xboo, amount); // send xboo its share
-        IERC20(boo).safeTransfer(_msgSender(), bounty); // send message sender their share of 0.1%
-        emit LogConvert(_msgSender(), boo, _amt, amount);
     }
 
     function _swap(
@@ -279,19 +283,6 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         } catch {
             return (amountIn, false);
         }
-    }
-
-    function _toBOO(address token, uint256 amountIn) internal returns (uint256 amountOut) {
-        uint256 amount = amountIn;
-        bool success;
-        if (devCut > 0) {
-            amount = amount.mul(devCut).div(10000);
-            IERC20(token).safeTransfer(devAddr, amount);
-            amount = amountIn.sub(amount);
-        }
-        (amountOut, success) = _swap(token, boo, amount);
-        if(!success)
-            revert("BrewBooV3: swap failure in toBOO");
     }
 
     function _getPair(address tokenA, address tokenB) internal returns (address pair) {
