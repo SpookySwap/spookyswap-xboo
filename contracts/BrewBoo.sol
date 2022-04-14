@@ -229,14 +229,13 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
 
     function _convertStep(
         address token0,
-        uint256 amount0
+        uint256 amount
     ) internal returns (bool) {
         // Interactions
         if (token0 == wftm || token0 == boo) {
             return true;
         } else {
             address bridge = lastRoute[token0];
-            uint256 amount = amount0;
             bool success = false;
             if(bridge != address(0))
                 (amount, success) = _swap(token0, bridge, amount);
@@ -278,7 +277,7 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             swapperApproved[fromToken] = true;
         }
 
-        try swapper.swap(fromToken, _getPair(fromToken, toToken), amountIn) returns (uint amount) {
+        try swapper.swap(fromToken, IUniswapV2Pair(_getPair(fromToken, toToken)), amountIn) returns (uint amount) {
             return (amount, true);
         } catch {
             return (amountIn, false);

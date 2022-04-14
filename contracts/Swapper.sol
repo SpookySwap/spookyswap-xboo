@@ -31,30 +31,25 @@ contract Swapper is ISwapper, Ownable {
 
     function swap(
         address fromToken,
-        address _pair,
+        IUniswapV2Pair pair,
         uint256 amountIn
     ) external onlyOwner returns (uint256 amountOut) {
-        IUniswapV2Pair pair = IUniswapV2Pair(_pair);
         require(address(pair) != address(0), "BrewBoo: Cannot convert");
 
-        (uint256 reserve0, uint256 reserve1, ) = pair.getReserves();
-        (uint reserveInput, uint reserveOutput) = fromToken == pair.token0() ? (reserve0, reserve1) : (reserve1, reserve0);
+        (uint256 ui1, uint256 ui2, ) = pair.getReserves();
+        bool isToken0 = fromToken == pair.token0();
+        (ui1, ui2) = isToken0 ? (ui1, ui2) : (ui2, ui1);
         
         IERC20(fromToken).safeTransferFrom(msg.sender, address(pair), amountIn);
-        uint amountInput = IERC20(fromToken).balanceOf(address(pair)).sub(reserveInput); // calculate amount that was transferred, this accounts for transfer taxes
-        require(slippageOverrode[fromToken] || reserveInput.div(amountInput) > slippage, "slippage too high");
+        amountIn = IERC20(fromToken).balanceOf(address(pair)).sub(ui1); // calculate amount that was transferred, this accounts for transfer taxes
+        require(ui1.div(amountIn) > slippage || slippageOverrode[fromToken], "slippage too high");
 
-        amountOut = _getAmountOut(amountInput, reserveInput, reserveOutput);
-        (uint amount0Out, uint amount1Out) = fromToken == pair.token0() ? (uint(0), amountOut) : (amountOut, uint(0));
-        pair.swap(amount0Out, amount1Out, msg.sender, new bytes(0));
-    }
-
-    function _getAmountOut(uint amountIn, uint reserveIn, uint reserveOut) internal pure returns (uint amountOut) {
         require(amountIn > 0, 'BrewBoo: INSUFFICIENT_INPUT_AMOUNT');
-        require(reserveIn > 0 && reserveOut > 0, 'BrewBoo: INSUFFICIENT_LIQUIDITY');
-        uint amountInWithFee = amountIn.mul(998);
-        uint numerator = amountInWithFee.mul(reserveOut);
-        uint denominator = reserveIn.mul(1000).add(amountInWithFee);
-        amountOut = numerator / denominator;
+        require(ui1 > 0 && ui2 > 0, 'BrewBoo: INSUFFICIENT_LIQUIDITY');
+        amountIn = amountIn.mul(998);
+        amountOut = amountIn.mul(ui2) / ui1.mul(1000).add(amountIn);
+
+        (ui1, ui2) = isToken0 ? (uint(0), amountOut) : (amountOut, uint(0));
+        pair.swap(ui1, ui2, msg.sender, new bytes(0));
     }
 }
