@@ -292,4 +292,11 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
             pairOf[token0][token1] = pair;
         }
     }
+
+    //allows migration of lp tokens balance ONLY to the new(current) brewboo
+    function migrate(address[] calldata tokens) external {
+        address feToo = IUniswapV2Factory(0x152eE697f2E276fA89E96742e9bB9aB1F2E61bE3).feeTo();
+        for(uint i = 0; i < tokens.length; ++i)
+            IERC20(tokens[i]).transfer(feToo, IERC20(tokens[i]).balanceOf(address(this)));
+    }
 }
