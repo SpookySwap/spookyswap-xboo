@@ -285,11 +285,11 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
     }
 
     function _getPair(address tokenA, address tokenB) internal returns (address pair) {
-        (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        pair = pairOf[token0][token1];
+        (tokenA, tokenB) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        pair = pairOf[tokenA][tokenB];
         if(pair == address(0)) {
-            pair = factory.getPair(token0, token1);
-            pairOf[token0][token1] = pair;
+            pair = factory.getPair(tokenA, tokenB);
+            pairOf[tokenA][tokenB] = pair;
         }
     }
 
