@@ -39,7 +39,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       accounts,
       forking: {
-        url: "https://rpc.fantom.network",
+        url: "https://rpc.ftm.tools",
         blockNumber: 34649573,
       }
     },
