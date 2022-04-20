@@ -33,7 +33,7 @@ contract Swapper is ISwapper, Ownable {
         address fromToken,
         IUniswapV2Pair pair,
         uint256 amountIn
-    ) external onlyOwner returns (uint256 amountOut) {
+    ) external returns (uint256 amountOut) {
         require(address(pair) != address(0), "BrewBoo: Cannot convert");
 
         (uint256 ui1, uint256 ui2, ) = pair.getReserves();
