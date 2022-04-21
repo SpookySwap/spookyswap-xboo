@@ -5,6 +5,7 @@ const wftm = "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83"
 const factory = "0x152eE697f2E276fA89E96742e9bB9aB1F2E61bE3"
 const xboo = "0xa48d959AE2E88f1dAA7D5F611E01908106dE7598"
 const usdc = "0x04068da6c83afcfa0e13ba15a6696662335d5b75"
+const dai = "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E"
 
 async function main() {
     let accounts = await ethers.getSigners();
@@ -12,7 +13,7 @@ async function main() {
     let tx
 
     const brewBoo = await ethers.getContractFactory("BrewBooV3");
-    const BrewBoo = await brewBoo.deploy(factory, xboo, boo, wftm);
+    const BrewBoo = await brewBoo.deploy(factory, xboo, boo, wftm, usdc, dai);
     const Boo = await ethers.getContractAt("contracts/interfaces/IERC20.sol:IERC20", boo)
     await BrewBoo.deployed()
     console.log("BrewBoo deployed to:", BrewBoo.address);

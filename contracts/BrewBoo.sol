@@ -72,7 +72,9 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         address _factory,
         address _xboo,
         address _boo,
-        address _wftm
+        address _wftm,
+        address route1,
+        address route2
     ) {
         factory = IUniswapV2Factory(_factory);
         xboo = _xboo;
@@ -82,8 +84,8 @@ contract BrewBooV3 is Ownable, ReentrancyGuard {
         isAuth[msg.sender] = true;
         authorized.push(msg.sender);
         bridgeRoute[0] = _wftm;
-        bridgeRoute[1] = 0x04068DA6C83AFCFA0e13ba15A6696662335D5B75;
-        bridgeRoute[2] = 0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E;
+        bridgeRoute[1] = route1;
+        bridgeRoute[2] = route2;
         swapper = new Swapper();
     }
 
