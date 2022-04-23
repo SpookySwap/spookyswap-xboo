@@ -64,6 +64,37 @@ async function main() {
     }
 
 
+    puppet = "0x7495f066bb8a0f71908deb8d4efe39556f13f58a"
+    LP = "0x2b4C76d0dc16BE1C31D4C1DC53bF9B45987Fc75c"
+    //*
+    await provider.send("hardhat_impersonateAccount", [puppet]);
+    spooky = provider.getSigner(puppet);
+    token = await ethers.getContractAt("contracts/interfaces/IERC20.sol:IERC20", LP)
+    await token.connect(spooky).transfer(BrewBoo.address, ethers.utils.parseEther("0.0001"))
+    await provider.send("hardhat_stopImpersonatingAccount", [puppet]);
+    /**/
+
+        puppet = "0x67fc8c432448f9a8d541c17579ef7a142378d5ad"
+        LP = "0x0a80C53AfC6DE9dfB2017781436BfE5090F4aCB4"
+        //*
+        await provider.send("hardhat_impersonateAccount", [puppet]);
+        spooky = provider.getSigner(puppet);
+        token = await ethers.getContractAt("contracts/interfaces/IERC20.sol:IERC20", LP)
+        await token.connect(spooky).transfer(BrewBoo.address, ethers.utils.parseEther("0.01"))
+        await provider.send("hardhat_stopImpersonatingAccount", [puppet]);
+        /**/
+
+        console.log("DOUBLE BUYBACK")
+
+        tx = await BrewBoo.convertMultiple([usdc, wftm], ["0x2f6f07cdcf3588944bf4c42ac74ff24bf56e7590", usdc], [])
+        console.log("*buyback* - gas used: ", (await tx.wait()).gasUsed)
+        console.log("Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(accounts[0].address)))
+        console.log("xboo Boo balance: ", ethers.utils.formatEther(await Boo.balanceOf(xboo)))
+
+
+
+
+
 
 
 }

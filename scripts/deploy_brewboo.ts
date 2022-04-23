@@ -15,7 +15,7 @@ async function main() {
 
     await run("verify:verify", {
       address: BrewBoo.address,
-      constructorArguments: [factory, xboo, boo, wftm],
+      constructorArguments: [factory, xboo, boo, wftm, usdc, dai],
   })
 }
 
