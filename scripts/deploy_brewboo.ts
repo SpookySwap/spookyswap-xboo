@@ -8,7 +8,7 @@ const usdc = "0x04068da6c83afcfa0e13ba15a6696662335d5b75"
 const dai = "0x8D11eC38a3EB5E956B052f67Da8Bdc9bef8Abf3E"
 
 async function main() {
-    const brewBoo = await ethers.getContractFactory("BrewBooV2");
+    const brewBoo = await ethers.getContractFactory("BrewBooV3");
     const BrewBoo = await brewBoo.deploy(factory, xboo, boo, wftm, usdc, dai);
     await BrewBoo.deployed()
     console.log("BrewBoo deployed to:", BrewBoo.address);
